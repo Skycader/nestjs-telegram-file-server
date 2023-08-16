@@ -1,6 +1,7 @@
 import { existsSync } from 'fs';
-import { readdir } from 'fs/promises';
+import { readdir, stat } from 'fs/promises';
 import {
+  Action,
   Ctx,
   Hears,
   Help,
@@ -23,10 +24,130 @@ export class AppUpdate {
 
   @Start()
   async startCommand(ctx: Context) {
+    const username = os.userInfo().username;
+    ctx.session.lastPath = join('/', 'home', username);
+    ctx.session.lastPage = 1;
     await ctx.reply(
       'This bot is a file server, type /help for list of commands',
     );
+    let files = await this.getRawFiles('', 1);
+    let renderedFiles = this.renderFiles(files);
+    await ctx.reply(
+      `Files in current folder:`,
+      this.appService.renderButtons(renderedFiles),
+    );
     // await ctx.reply('Что ты хочешь сделать?', this.appService.getButtons());
+  }
+
+  renderFiles(files: any) {
+    let arr = [];
+
+    arr.push({ text: '..', action: 'cd:..' });
+    for (let file of files) {
+      arr.push({
+        text: file.slice(0, 100),
+        action: this.defineAction(file).slice(0, 31),
+      });
+    }
+    arr.push({ text: '<-', action: 'cd:prev-page' });
+    arr.push({ text: '->', action: 'cd:next-page' });
+    console.log(arr);
+    return arr;
+  }
+
+  defineAction(filename) {
+    if (filename.match(/folder/gi)) {
+      return 'cd:' + filename;
+    } else {
+      return 'get:' + filename;
+    }
+  }
+
+  @Action(/get:*/)
+  async getFileByButton(@Ctx() ctx: Context) {
+    let filename = ctx['match']['input'].split(':')[1].split('/')[0];
+    if (existsSync(ctx.session.lastPath)) {
+      ctx.reply('Getting fie: ' + ctx.session.lastPath + '/' + filename);
+      await ctx.replyWithDocument({
+        source: ctx.session.lastPath + '/' + filename,
+      });
+    } else {
+      await ctx.reply('No such file');
+    }
+  }
+
+  @Action(/cd:*/)
+  async cdByButton(@Ctx() ctx: Context) {
+    let path = ctx['match']['input'].split(':')[1].split('/')[0];
+    console.log(path);
+    if (path === 'next-page') {
+      ctx.session.lastPage = ctx.session.lastPage * 1 + 1;
+      await ctx.reply('Current page is now: ' + ctx.session.lastPage);
+
+      let files = await this.getRawFiles(
+        ctx.session.lastPath,
+        ctx.session.lastPage,
+      );
+      let renderedFiles = this.renderFiles(files);
+      // await ctx.reply(renderedFiles.join(''));
+      await ctx.reply(
+        `Files in current folder:`,
+        this.appService.renderButtons(renderedFiles),
+      );
+
+      return;
+    }
+    if (path === 'prev-page') {
+      ctx.session.lastPage = ctx.session.lastPage * 1 - 1;
+      await ctx.reply('Current page is now: ' + ctx.session.lastPage);
+
+      let files = await this.getRawFiles(
+        ctx.session.lastPath,
+        ctx.session.lastPage,
+      );
+      let renderedFiles = this.renderFiles(files);
+      await ctx.reply(
+        `Files in current folder:`,
+        this.appService.renderButtons(renderedFiles),
+      );
+
+      return;
+    }
+
+    if (path === '..') {
+      ctx.session.lastPath = ctx.session.lastPath
+        .split('/')
+        .slice(0, -1)
+        .join('/');
+
+      await ctx.reply(
+        'Went up a folder, current path: ' + ctx.session.lastPath,
+      );
+
+      let files = await this.getRawFiles(ctx.session.lastPath, 1);
+      let renderedFiles = this.renderFiles(files);
+      await ctx.reply(
+        `Files in current folder:`,
+        this.appService.renderButtons(renderedFiles),
+      );
+
+      return;
+    }
+    ctx.session.lastPath = ctx.session.lastPath + '/' + path;
+    ctx.session.lastPage = 1;
+    await ctx.reply('Current path now: ' + ctx.session.lastPath);
+
+    let files = await this.getRawFiles(
+      ctx.session.lastPath,
+      ctx.session.lastPage,
+    );
+    let renderedFiles = this.renderFiles(files);
+    console.log('rendered files: ', renderedFiles);
+
+    await ctx.reply(
+      `Files in current folder:`,
+      this.appService.renderButtons(renderedFiles),
+    );
   }
 
   @Help()
@@ -36,13 +157,32 @@ export class AppUpdate {
     2. get <file number>`);
   }
 
+  renderSize(file) {
+    if (file.isDirectory()) {
+      return 'folder';
+    } else {
+      return (file.size / 1000 / 1000).toFixed(2) + 'MB';
+    }
+  }
+
   async getFiles(path: string = '', page: number = 1) {
     const username = os.userInfo().username;
     if (path.length === 0) path = join('/', 'home', username);
+    console.log(path);
     if (existsSync(path)) {
-      const files = await readdir(path);
-      return files
-        .slice(page - 1, page + 9)
+      let files = await readdir(path);
+
+      const stats = files.map((file) => stat(join(path, file)));
+      let res = await Promise.all(stats);
+      let sizes = res.map((file) => this.renderSize(file));
+      // console.log(sizes);
+
+      const filesWithSizes = files.map(
+        (file, index) => file + '/' + sizes[index],
+      );
+      console.log(page - 1, page * 1 + 9);
+      return filesWithSizes
+        .slice(page - 1, page * 1 + 9)
         .map(
           (filename: string, index: number) =>
             index + page * 10 - 9 + ' ' + filename,
@@ -58,7 +198,16 @@ export class AppUpdate {
     if (path.length === 0) path = join('/', 'home', username);
     if (existsSync(path)) {
       const files = await readdir(path);
-      return files.slice(page - 1, page + 9);
+      const stats = files.map((file) => stat(join(path, file)));
+      let res = await Promise.all(stats);
+      let sizes = res.map((file) => this.renderSize(file));
+      // console.log(sizes);
+
+      const filesWithSizes = files.map(
+        (file, index) => file + '/' + sizes[index],
+      );
+
+      return filesWithSizes.slice(page * 10 - 10, page * 10);
     } else {
       return 'NO SUCH DIR AS' + path;
     }
@@ -67,12 +216,16 @@ export class AppUpdate {
   @Hears(/cd\s*/)
   async cd(@Message() message: any, @Ctx() ctx: Context) {
     const username = os.userInfo().username;
-    let dir = message.text.split(' ')[1];
-    let page = message.text.split(' ')[2] || 1;
+    if (message.text.split('_').length < 3) {
+      await ctx.reply('You must always specify path and page');
+      return;
+    }
+    let dir = message.text.split('_')[1];
+    let page = message.text.split('_')[2] || 1;
     let path = join('/', 'home', username, dir);
     ctx.session.lastPath = path || '';
     ctx.session.lastPage = page || 1;
-    await ctx.reply(await this.getFiles(path, page * 1));
+    await ctx.reply((await this.getFiles(path, page * 1)) || 'No files here');
   }
 
   @Hears(/get\s*/)
@@ -100,8 +253,15 @@ export class AppUpdate {
 
   @Hears('ls')
   async ls(ctx: Context) {
+    // await ctx.reply(
+    //   await this.getFiles(ctx.session.lastPath, ctx.session.lastPage),
+    // );
+
+    let files = await this.getRawFiles(ctx.session.lastPath, 1);
+    let renderedFiles = this.renderFiles(files);
     await ctx.reply(
-      await this.getFiles(ctx.session.lastPath, ctx.session.lastPage),
+      `Files in current folder:`,
+      this.appService.renderButtons(renderedFiles),
     );
   }
 

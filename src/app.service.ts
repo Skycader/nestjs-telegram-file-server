@@ -5,16 +5,16 @@ import { Markup } from 'telegraf';
 export class AppService {
   constructor() {}
 
-  getButtons() {
-    return Markup.inlineKeyboard(
-      [
-        Markup.button.callback('📔 Список дел', 'list'),
-        Markup.button.callback('📝 Редактирование', 'edit'),
-        Markup.button.callback('❌ Удаление', 'delete'),
-      ],
-      {
-        columns: 2,
-      },
-    );
+  getButtons(buttons: any[]) {
+    let arr = [];
+    for (let button of buttons) {
+      arr.push(Markup.button.callback(button.text, button.action));
+    }
+    return arr;
+  }
+  renderButtons(buttons: any[]) {
+    return Markup.inlineKeyboard(this.getButtons(buttons), {
+      columns: 1,
+    });
   }
 }

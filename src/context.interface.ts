@@ -5,5 +5,6 @@ export interface Context extends ContextTelegraf {
     lastCommand: string;
     lastPath: string;
     lastPage: number;
+    files: any;
   };
 }

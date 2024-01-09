@@ -15,6 +15,7 @@ import { join } from 'path';
 import { Telegraf } from 'telegraf';
 import { AppService } from './app.service';
 import { Context } from './context.interface';
+import { FileInterface } from './models/file.interface';
 @Update()
 export class AppUpdate {
   constructor(
@@ -39,8 +40,8 @@ export class AppUpdate {
     // await ctx.reply('Что ты хочешь сделать?', this.appService.getButtons());
   }
 
-  renderFiles(files: any) {
-    let arr = [];
+  renderFiles(files: string[]) {
+    let arr: FileInterface[] = [];
 
     arr.push({ text: '..', action: 'cd:..' });
     for (let file of files) {
@@ -55,7 +56,7 @@ export class AppUpdate {
     return arr;
   }
 
-  defineAction(filename) {
+  defineAction(filename: string) {
     if (filename.match(/folder/gi)) {
       return 'cd:' + filename;
     } else {
@@ -193,7 +194,7 @@ export class AppUpdate {
     }
   }
 
-  async getRawFiles(path: string = '', page: number = 1) {
+  async getRawFiles(path: string = '', page: number = 1): Promise<string[]> {
     const username = os.userInfo().username;
     if (path.length === 0) path = join('/', 'home', username);
     if (existsSync(path)) {
@@ -209,7 +210,7 @@ export class AppUpdate {
 
       return filesWithSizes.slice(page * 10 - 10, page * 10);
     } else {
-      return 'NO SUCH DIR AS' + path;
+      return ['NO SUCH DIR AS' + path];
     }
   }
 

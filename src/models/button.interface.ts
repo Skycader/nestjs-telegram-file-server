@@ -1,4 +1,4 @@
-export interface FileInterface {
+export interface ButtonInterface {
   /**
    * Displayed title of the command
    */

@@ -15,7 +15,7 @@ import { join } from 'path';
 import { Telegraf } from 'telegraf';
 import { AppService } from './app.service';
 import { Context } from './context.interface';
-import { FileInterface } from './models/file.interface';
+import { ButtonInterface } from './models/button.interface';
 @Update()
 export class AppUpdate {
   constructor(
@@ -41,7 +41,7 @@ export class AppUpdate {
   }
 
   renderFiles(files: string[]) {
-    let arr: FileInterface[] = [];
+    let arr: ButtonInterface[] = [];
 
     arr.push({ text: '..', action: 'cd:..' });
     for (let file of files) {

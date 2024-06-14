@@ -1,5 +1,6 @@
 import { existsSync } from 'fs';
 import { readdir, stat } from 'fs/promises';
+import process = require('node:process');
 import {
   Action,
   Ctx,
@@ -16,12 +17,13 @@ import { Telegraf } from 'telegraf';
 import { AppService } from './app.service';
 import { Context } from './context.interface';
 import { ButtonInterface } from './models/button.interface';
+
 @Update()
 export class AppUpdate {
   constructor(
     @InjectBot() private readonly bot: Telegraf<Context>,
     private readonly appService: AppService,
-  ) {}
+  ) { }
 
   @Start()
   async startCommand(ctx: Context) {
@@ -66,14 +68,16 @@ export class AppUpdate {
 
   @Action(/get:*/)
   async getFileByButton(@Ctx() ctx: Context) {
+    let error = false;
     let filename = ctx['match']['input'].split(':')[1].split('/')[0];
     if (existsSync(ctx.session.lastPath)) {
       ctx.reply('Getting fie: ' + ctx.session.lastPath + '/' + filename);
-      await ctx.replyWithDocument({
-        source: ctx.session.lastPath + '/' + filename,
-      });
-    } else {
-      await ctx.reply('No such file');
+      await ctx
+        .replyWithDocument({
+          source: ctx.session.lastPath + '/' + filename,
+        })
+        .catch((e: any) => (error = true));
+      if (error) await ctx.reply('Error');
     }
   }
 
@@ -244,9 +248,11 @@ export class AppUpdate {
 
     if (existsSync(path)) {
       ctx.reply('Getting fie: ' + path);
-      await ctx.replyWithDocument({
-        source: path,
-      });
+      await ctx
+        .replyWithDocument({
+          source: path,
+        })
+        .catch((e) => console.log('error'));
     } else {
       await ctx.reply('No such file');
     }
@@ -270,9 +276,4 @@ export class AppUpdate {
   async getLastCommand(ctx: Context) {
     await ctx.reply(ctx.session.lastCommand || '');
   }
-
-  // @Action('list')
-  // getAll() {
-  //   return 'OK';
-  // }
 }
